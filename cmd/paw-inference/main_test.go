@@ -115,6 +115,24 @@ func TestHealthReturnsUnavailableWithoutReadyWorker(t *testing.T) {
 	}
 }
 
+func TestIndexServesEmbeddedPage(t *testing.T) {
+	pool := testPool(http.DefaultClient, map[string]program{"alpha": {name: "alpha"}}, &worker{state: workerReady})
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	response := httptest.NewRecorder()
+
+	(&inferenceServer{pool: pool}).routes().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d", response.Code)
+	}
+	if contentType := response.Header().Get("Content-Type"); contentType != "text/html; charset=utf-8" {
+		t.Fatalf("content type = %q", contentType)
+	}
+	if !strings.Contains(response.Body.String(), "PAW Inference") {
+		t.Fatal("page does not contain title")
+	}
+}
+
 func TestSplitTemplate(t *testing.T) {
 	prefix, suffix := splitTemplate("prefix{INPUT_PLACEHOLDER}suffix")
 	if prefix != "prefix" || suffix != "suffix" {

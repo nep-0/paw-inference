@@ -4,6 +4,7 @@ package main
 import (
 	"archive/zip"
 	"context"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,6 +22,9 @@ import (
 	"syscall"
 	"time"
 )
+
+//go:embed index.html
+var indexHTML []byte
 
 const (
 	defaultListenAddress = ":8080"
@@ -697,10 +701,19 @@ func (p *workerPool) signal() {
 
 func (s inferenceServer) routes() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /", s.index)
 	mux.HandleFunc("GET /healthz", s.health)
 	mux.HandleFunc("GET /v1/programs", s.listPrograms)
 	mux.HandleFunc("POST /v1/infer", s.infer)
 	return mux
+}
+
+func (s inferenceServer) index(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write(indexHTML); err != nil {
+		log.Printf("write index page: %v", err)
+	}
 }
 
 func (s inferenceServer) health(w http.ResponseWriter, r *http.Request) {

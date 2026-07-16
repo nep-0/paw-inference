@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PAW Inference</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      background: #f3f5f4;
+      color: #17201d;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-width: 320px; }
+    .shell { min-height: 100vh; display: grid; grid-template-columns: 260px minmax(0, 1fr); }
+    aside { background: #17201d; color: #eef5f0; padding: 24px 16px; display: flex; flex-direction: column; gap: 24px; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; letter-spacing: 0; }
+    .brand-mark { width: 28px; height: 28px; display: grid; place-items: center; background: #d8f06a; color: #17201d; font-size: 13px; font-weight: 800; }
+    .sidebar-label, .field label { color: #6a7770; font-size: 12px; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+    .sidebar-label { color: #a8b6ad; padding: 0 8px; }
+    #programs { display: grid; gap: 4px; }
+    .program { border: 0; border-left: 3px solid transparent; background: transparent; color: #d9e5dd; cursor: pointer; padding: 10px 8px; text-align: left; font: inherit; overflow-wrap: anywhere; }
+    .program:hover { background: #26342e; }
+    .program.selected { border-left-color: #d8f06a; background: #26342e; color: #ffffff; }
+    .sidebar-footer { margin-top: auto; display: flex; align-items: center; gap: 8px; color: #a8b6ad; font-size: 13px; padding: 8px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #d18a37; }
+    .dot.ready { background: #64d391; }
+    main { width: min(980px, 100%); margin: 0 auto; padding: 40px clamp(20px, 5vw, 64px); }
+    header { display: flex; justify-content: space-between; align-items: center; gap: 20px; margin-bottom: 36px; }
+    h1 { font-size: 26px; margin: 0; letter-spacing: 0; }
+    #active-program { color: #516159; font: 500 14px ui-monospace, SFMono-Regular, Consolas, monospace; overflow-wrap: anywhere; text-align: right; }
+    .workspace { display: grid; grid-template-columns: minmax(0, 1fr) 250px; gap: 16px; align-items: start; }
+    .surface { background: #ffffff; border: 1px solid #d9e0dc; padding: 20px; }
+    .field { display: grid; gap: 9px; margin-bottom: 18px; }
+    textarea, input { width: 100%; border: 1px solid #c8d2cc; border-radius: 3px; background: #fbfcfb; color: #17201d; font: inherit; padding: 11px; }
+    textarea { min-height: 230px; resize: vertical; line-height: 1.45; }
+    textarea:focus, input:focus { outline: 2px solid #94b9a5; outline-offset: 1px; border-color: #769b87; }
+    .settings { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    button.run { width: 100%; border: 0; border-radius: 3px; background: #17765d; color: #ffffff; padding: 12px 16px; font: 700 14px inherit; cursor: pointer; }
+    button.run:hover { background: #0e6049; }
+    button.run:disabled { background: #9eaaa4; cursor: wait; }
+    .result-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+    .result-header h2 { font-size: 14px; margin: 0; }
+    #timing { color: #6a7770; font-size: 12px; }
+    pre { margin: 0; min-height: 160px; white-space: pre-wrap; overflow-wrap: anywhere; background: #f3f5f4; border-left: 3px solid #d8f06a; padding: 14px; font: 13px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; }
+    .error { border-left-color: #d34f4f; color: #9f2727; }
+    .empty { color: #78857d; }
+    @media (max-width: 760px) {
+      .shell { grid-template-columns: 1fr; }
+      aside { padding: 14px 16px; gap: 12px; }
+      #programs { grid-auto-flow: column; grid-auto-columns: minmax(130px, 1fr); overflow-x: auto; }
+      .sidebar-label { display: none; }
+      .sidebar-footer { display: none; }
+      main { padding: 26px 16px; }
+      header { align-items: flex-start; flex-direction: column; margin-bottom: 22px; }
+      #active-program { text-align: left; }
+      .workspace { grid-template-columns: 1fr; }
+      textarea { min-height: 180px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside>
+      <div class="brand"><span class="brand-mark">PAW</span><span>Inference</span></div>
+      <div>
+        <div class="sidebar-label">Programs</div>
+        <nav id="programs" aria-label="Programs"></nav>
+      </div>
+      <div class="sidebar-footer"><span id="health-dot" class="dot"></span><span id="health-text">Checking service</span></div>
+    </aside>
+    <main>
+      <header>
+        <h1>Run Program</h1>
+        <div id="active-program">No program selected</div>
+      </header>
+      <div class="workspace">
+        <section class="surface" aria-label="Inference input">
+          <div class="field">
+            <label for="input">Input</label>
+            <textarea id="input" placeholder="Enter text to process" spellcheck="true"></textarea>
+          </div>
+          <div class="settings">
+            <div class="field">
+              <label for="max-tokens">Max tokens</label>
+              <input id="max-tokens" type="number" min="1" value="512">
+            </div>
+            <div class="field">
+              <label for="temperature">Temperature</label>
+              <input id="temperature" type="number" min="0" step="0.1" value="0">
+            </div>
+          </div>
+          <button class="run" id="run" type="button" disabled>Run</button>
+        </section>
+        <section class="surface" aria-label="Inference output">
+          <div class="result-header"><h2>Output</h2><span id="timing"></span></div>
+          <pre id="output" class="empty">Select a program to begin.</pre>
+        </section>
+      </div>
+    </main>
+  </div>
+  <script>
+    const programsElement = document.querySelector('#programs');
+    const activeProgramElement = document.querySelector('#active-program');
+    const runButton = document.querySelector('#run');
+    const outputElement = document.querySelector('#output');
+    const timingElement = document.querySelector('#timing');
+    const healthDot = document.querySelector('#health-dot');
+    const healthText = document.querySelector('#health-text');
+    let selectedProgram = '';
+
+    function showOutput(value, isError = false) {
+      outputElement.textContent = value;
+      outputElement.classList.toggle('error', isError);
+      outputElement.classList.toggle('empty', !value);
+    }
+
+    function selectProgram(name) {
+      selectedProgram = name;
+      activeProgramElement.textContent = name;
+      runButton.disabled = false;
+      for (const button of programsElement.querySelectorAll('.program')) {
+        button.classList.toggle('selected', button.dataset.program === name);
+      }
+      showOutput('');
+      timingElement.textContent = '';
+    }
+
+    async function loadPrograms() {
+      const response = await fetch('/v1/programs');
+      if (!response.ok) throw new Error('Could not load programs');
+      const data = await response.json();
+      programsElement.replaceChildren();
+      for (const item of data.programs) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'program';
+        button.dataset.program = item.name;
+        button.textContent = item.name;
+        button.addEventListener('click', () => selectProgram(item.name));
+        programsElement.append(button);
+      }
+      if (data.programs.length) selectProgram(data.programs[0].name);
+      else showOutput('No programs are available.', true);
+    }
+
+    async function checkHealth() {
+      try {
+        const response = await fetch('/healthz');
+        const ready = response.status === 204;
+        healthDot.classList.toggle('ready', ready);
+        healthText.textContent = ready ? 'Service ready' : 'Workers starting';
+      } catch {
+        healthDot.classList.remove('ready');
+        healthText.textContent = 'Service unavailable';
+      }
+    }
+
+    runButton.addEventListener('click', async () => {
+      if (!selectedProgram) return;
+      const started = performance.now();
+      runButton.disabled = true;
+      timingElement.textContent = 'Running';
+      showOutput('');
+      try {
+        const response = await fetch('/v1/infer', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            program: selectedProgram,
+            input: document.querySelector('#input').value,
+            max_tokens: Number(document.querySelector('#max-tokens').value),
+            temperature: Number(document.querySelector('#temperature').value)
+          })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Inference failed');
+        showOutput(data.output || '');
+      } catch (error) {
+        showOutput(error.message, true);
+      } finally {
+        timingElement.textContent = `${Math.round(performance.now() - started)} ms`;
+        runButton.disabled = false;
+      }
+    });
+
+    Promise.all([loadPrograms(), checkHealth()]).catch(error => showOutput(error.message, true));
+    setInterval(checkHealth, 5000);
+  </script>
+</body>
+</html>
