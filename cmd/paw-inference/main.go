@@ -130,7 +130,15 @@ type loraSetting struct {
 }
 
 type inferResponse struct {
-	Output string `json:"output"`
+	Output  string           `json:"output"`
+	Timings inferenceTimings `json:"timings"`
+}
+
+type inferenceTimings struct {
+	AdapterApplied bool    `json:"adapter_applied"`
+	AdapterMS      float64 `json:"adapter_ms"`
+	InferenceMS    float64 `json:"inference_ms"`
+	TotalMS        float64 `json:"total_ms"`
 }
 
 type programStatus struct {
@@ -755,6 +763,7 @@ func (s inferenceServer) infer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	started := time.Now()
 	worker, loaded, switchNeeded, err := s.pool.acquire(r.Context(), request.Program)
 	if err != nil {
 		switch {
@@ -768,12 +777,15 @@ func (s inferenceServer) infer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer s.pool.release(worker)
+	adapterDuration := time.Duration(0)
 	if switchNeeded {
+		adapterStarted := time.Now()
 		if err := s.pool.activate(r.Context(), worker, loaded); err != nil {
 			s.pool.markDead(worker, fmt.Errorf("activate %q on worker %d: %w", loaded.name, worker.id, err))
 			writeError(w, http.StatusBadGateway, "could not activate program adapter")
 			return
 		}
+		adapterDuration = time.Since(adapterStarted)
 	}
 
 	payload, err := json.Marshal(llamaCompletionRequest{
@@ -786,13 +798,27 @@ func (s inferenceServer) infer(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "encode inference request")
 		return
 	}
+	inferenceStarted := time.Now()
 	completion, err := complete(r.Context(), s.pool.client, worker.url, payload)
 	if err != nil {
 		log.Printf("worker %d completion failed: %v", worker.id, err)
 		writeError(w, http.StatusBadGateway, "llama.cpp inference failed")
 		return
 	}
-	writeJSON(w, http.StatusOK, inferResponse{Output: strings.TrimSpace(completion.Content)})
+	inferenceDuration := time.Since(inferenceStarted)
+	writeJSON(w, http.StatusOK, inferResponse{
+		Output: strings.TrimSpace(completion.Content),
+		Timings: inferenceTimings{
+			AdapterApplied: switchNeeded,
+			AdapterMS:      milliseconds(adapterDuration),
+			InferenceMS:    milliseconds(inferenceDuration),
+			TotalMS:        milliseconds(time.Since(started)),
+		},
+	})
+}
+
+func milliseconds(duration time.Duration) float64 {
+	return float64(duration.Microseconds()) / 1000
 }
 
 func complete(ctx context.Context, client *http.Client, llamaURL string, payload []byte) (llamaCompletionResponse, error) {

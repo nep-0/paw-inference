@@ -60,6 +60,8 @@ The response is:
 `max_tokens` defaults to `512`; `temperature` defaults to deterministic greedy
 generation (`0`). Requests are limited to 1 MiB. The service sends the exact
 rendered bundle template to llama.cpp's non-streaming `/completion` endpoint.
+Successful responses include `timings.adapter_ms`, `timings.inference_ms`, and
+`timings.total_ms`.
 
 All bundles must declare the same `runtime_id`. This image intentionally
 supports one matching base GGUF model only.

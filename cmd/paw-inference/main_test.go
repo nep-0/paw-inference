@@ -40,8 +40,12 @@ func TestInferRoutesToWarmProgramWorker(t *testing.T) {
 	if received.Prompt != "before hello after" || received.NPredict != 12 || received.Temperature != 0.25 || received.Stream {
 		t.Fatalf("unexpected llama request: %#v", received)
 	}
-	if got := response.Body.String(); got != "{\"output\":\"answer\"}\n" {
-		t.Fatalf("response = %q", got)
+	var result inferResponse
+	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
+		t.Fatal(err)
+	}
+	if result.Output != "answer" || result.Timings.AdapterApplied {
+		t.Fatalf("response = %#v", result)
 	}
 }
 
