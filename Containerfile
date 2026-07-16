@@ -11,13 +11,16 @@ COPY --from=builder /out/paw-inference /usr/local/bin/paw-inference
 RUN chmod 0755 /usr/local/bin/paw-inference
 
 ENV LISTEN_ADDR=:8080 \
-    LLAMA_URL=http://127.0.0.1:8081 \
     MODEL_PATH=/models/base.gguf \
-    PAW_BUNDLE=/program/program.paw \
+    PAW_DIR=/programs \
     LLAMA_SERVER=/app/llama-server \
     LLAMA_HOST=127.0.0.1 \
     LLAMA_PORT=8081 \
-    LLAMA_CTX_SIZE=2048
+    LLAMA_CTX_SIZE=2048 \
+    MAX_WORKERS=1 \
+    MIN_WORKERS=1 \
+    WORKER_SLOTS=1 \
+    MAX_QUEUE=100
 
 EXPOSE 8080
 
